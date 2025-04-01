@@ -1,3 +1,4 @@
+// src/commands/imagine.js (Modify to check subscription before generating an image)
 const {
   ApplicationCommandOptionType,
   EmbedBuilder,
@@ -7,17 +8,25 @@ const {
 } = require('discord.js');
 const { REPLICATE_API_KEY } = require('../../config.json');
 const models = require('../models');
+const User = require('../models/user');
 
 module.exports = {
   run: async ({ interaction }) => {
     try {
       await interaction.deferReply();
 
-      const { default: Replicate } = await import('replicate');
+      const email = interaction.options.getString('email');
+      if (!email) {
+        return interaction.editReply("Please provide your email.");
+      }
 
-      const replicate = new Replicate({
-        auth: REPLICATE_API_KEY,
-      });
+      const user = await User.findOne({ email });
+      if (!user || user.subscription_status === 'free') {
+        return interaction.editReply("❌ You need a paid subscription to generate images.");
+      }
+
+      const { default: Replicate } = await import('replicate');
+      const replicate = new Replicate({ auth: REPLICATE_API_KEY });
 
       const prompt = interaction.options.getString('prompt');
       const model = interaction.options.getString('model') || models[0].value;
@@ -60,6 +69,12 @@ module.exports = {
     name: 'imagine',
     description: 'Generate an image using a prompt.',
     options: [
+      {
+        name: 'email',
+        description: 'Enter your registered email',
+        type: ApplicationCommandOptionType.String,
+        required: true,
+      },
       {
         name: 'prompt',
         description: 'Enter your prompt',
